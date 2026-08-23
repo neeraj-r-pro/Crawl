@@ -1,15 +1,15 @@
-from models.schemas import Company
+from pipeline.crawler import CompanyCrawler
 
 
-company = Company(
-    name="Example Corporation",
-    website="https://example.com",
-    description="Example company description",
-    products=["Product A", "Product B"],
-    services=["Consulting"],
-    locations=["Kochi", "Bangalore"],
-)
+def main():
+    crawler = CompanyCrawler()
 
-print(company)
-print()
-print(company.model_dump())
+    url = "https://example.com"
+
+    company = crawler.crawl(url)
+
+    print(company.model_dump(mode="json"))
+
+
+if __name__ == "__main__":
+    main()
