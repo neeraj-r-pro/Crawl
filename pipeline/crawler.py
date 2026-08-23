@@ -1,8 +1,10 @@
 from extraction.company import CompanyExtractor
+from extraction.company_merger import CompanyMerger
 from extraction.html_parser import HTMLParser
 from crawler.http_fetcher import HTTPFetcher
 from storage.repository import CompanyRepository
-
+from crawler.crawl_queue import CrawlQueue
+from crawler.url_manager import URLManager
 
 class CompanyCrawler:
     """Coordinate fetching, parsing, extraction, and persistence."""
@@ -12,34 +14,81 @@ class CompanyCrawler:
         fetcher: HTTPFetcher | None = None,
         parser: HTMLParser | None = None,
         extractor: CompanyExtractor | None = None,
+        merger: CompanyMerger | None = None,
         repository: CompanyRepository | None = None,
     ) -> None:
         self.fetcher = fetcher or HTTPFetcher()
         self.parser = parser or HTMLParser()
         self.extractor = extractor or CompanyExtractor()
+        self.merger = merger or CompanyMerger()
         self.repository = repository or CompanyRepository()
 
-    def crawl(self, url: str):
-        """Crawl a website and persist the extracted company."""
+    def crawl(
+        self,
+        url: str,
+        max_pages: int = 10,
+    ):
+        """Crawl multiple pages within the same domain."""
 
-        response = self.fetcher.fetch(url)
+        start_url = URLManager.normalize(url)
 
-        if not response.success:
-            raise RuntimeError(
-                response.error or "Failed to fetch website"
+        queue = CrawlQueue()
+        queue.add(start_url)
+
+        pages_crawled = 0
+        company = None
+
+        while queue.has_pending() and pages_crawled < max_pages:
+            current_url = queue.next()
+
+            if current_url is None:
+                break
+
+            response = self.fetcher.fetch(current_url)
+
+            if not response.success:
+                continue
+
+            if not response.html:
+                continue
+
+            final_url = response.final_url or response.url
+
+            page = self.parser.parse(
+                response.html,
+                final_url,
             )
 
-        if not response.html:
-            raise RuntimeError(
-                "Website returned empty HTML"
+            page_company = self.extractor.extract(page)
+
+            company = self.merger.merge(
+                company,
+                page_company,
             )
 
-        page = self.parser.parse(
-            response.html,
-            response.final_url or response.url,
-        )
+            pages_crawled += 1
 
-        company = self.extractor.extract(page)
+            for link in page.links:
+                if link.link_type != "page":
+                    continue
+
+                try:
+                    normalized_link = URLManager.normalize(
+                        link.url
+                    )
+                except ValueError:
+                    continue
+
+                if URLManager.is_same_domain(
+                    normalized_link,
+                    start_url,
+                ):
+                    queue.add(normalized_link)
+
+        if company is None:
+            raise RuntimeError(
+                "Unable to extract company information."
+            )
 
         self.repository.save(company)
 

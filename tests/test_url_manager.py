@@ -63,3 +63,17 @@ def test_different_domain():
         "https://other.com/about",
         "https://example.com",
     )
+
+def test_reject_malformed_url():
+    with pytest.raises(ValueError):
+        URLManager.normalize("https://")
+
+
+def test_reject_missing_host():
+    with pytest.raises(ValueError):
+        URLManager.normalize("https:///about")
+
+
+def test_reject_non_string_url():
+    with pytest.raises(ValueError):
+        URLManager.normalize(None)
