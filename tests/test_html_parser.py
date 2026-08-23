@@ -6,9 +6,30 @@ HTML = """
 <html>
 <head>
     <title>Acme Technologies</title>
+
     <meta
         name="description"
         content="Acme provides software solutions."
+    >
+
+    <meta
+        property="og:title"
+        content="Acme Technologies | Enterprise Software"
+    >
+
+    <meta
+        property="og:site_name"
+        content="Acme Technologies"
+    >
+
+    <meta
+        property="og:description"
+        content="Enterprise software for modern businesses."
+    >
+
+    <meta
+        name="application-name"
+        content="Acme Portal"
     >
 </head>
 
@@ -75,10 +96,11 @@ def test_convert_relative_links_to_absolute():
         "https://example.com",
     )
 
-    assert result.links == [
-        "https://example.com/about",
-        "https://example.com/contact",
-    ]
+    assert result.links[0].url == "https://example.com/about"
+    assert result.links[0].link_type == "page"
+
+    assert result.links[1].url == "https://example.com/contact"
+    assert result.links[1].link_type == "page"
 
 
 def test_parse_meta_description():
@@ -92,3 +114,60 @@ def test_parse_meta_description():
     assert result.meta_description == (
         "Acme provides software solutions."
     )
+
+
+def test_classify_special_links():
+    html = """
+    <html>
+        <body>
+            <a href="mailto:sales@example.com">Email</a>
+            <a href="tel:+919876543210">Call</a>
+            <a href="https://linkedin.com/company/example">
+                LinkedIn
+            </a>
+            <a href="javascript:void(0)">Action</a>
+            <a href="/about">About</a>
+        </body>
+    </html>
+    """
+
+    parser = HTMLParser()
+
+    result = parser.parse(
+        html,
+        "https://example.com",
+    )
+
+    assert result.links[0].url == "mailto:sales@example.com"
+    assert result.links[0].link_type == "email"
+
+    assert result.links[1].url == "tel:+919876543210"
+    assert result.links[1].link_type == "phone"
+
+    assert result.links[2].link_type == "social"
+
+    assert result.links[3].link_type == "other"
+
+    assert result.links[4].url == "https://example.com/about"
+    assert result.links[4].link_type == "page"
+
+
+def test_parse_social_metadata():
+    parser = HTMLParser()
+
+    result = parser.parse(
+        HTML,
+        "https://example.com",
+    )
+
+    assert result.og_title == (
+        "Acme Technologies | Enterprise Software"
+    )
+
+    assert result.og_site_name == "Acme Technologies"
+
+    assert result.og_description == (
+        "Enterprise software for modern businesses."
+    )
+
+    assert result.application_name == "Acme Portal"
