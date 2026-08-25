@@ -4,9 +4,12 @@ from pipeline.crawler import CompanyCrawler
 def main():
     crawler = CompanyCrawler()
 
-    url = "https://example.com"
+    url = input("Enter company website URL: ").strip()
 
-    company = crawler.crawl(url)
+    company = crawler.crawl(
+        url,
+        max_pages=10,
+    )
 
     print(company.model_dump(mode="json"))
 

@@ -43,14 +43,41 @@ def test_next_empty_queue_returns_none():
     assert queue.next() is None
 
 
-def test_fifo_order():
+def test_priority_order():
     queue = CrawlQueue()
 
-    queue.add("https://example.com/about")
-    queue.add("https://example.com/services")
-    queue.add("https://example.com/contact")
+    queue.add(
+        "https://example.com/blog",
+        priority=20,
+    )
+
+    queue.add(
+        "https://example.com/about",
+        priority=100,
+    )
+
+    queue.add(
+        "https://example.com/contact",
+        priority=80,
+    )
 
     assert queue.next() == "https://example.com/about"
-    assert queue.next() == "https://example.com/services"
     assert queue.next() == "https://example.com/contact"
+    assert queue.next() == "https://example.com/blog"
     assert queue.next() is None
+
+def test_same_priority_preserves_insertion_order():
+    queue = CrawlQueue()
+
+    queue.add(
+        "https://example.com/about",
+        priority=100,
+    )
+
+    queue.add(
+        "https://example.com/company",
+        priority=100,
+    )
+
+    assert queue.next() == "https://example.com/about"
+    assert queue.next() == "https://example.com/company"

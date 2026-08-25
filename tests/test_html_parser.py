@@ -171,3 +171,25 @@ def test_parse_social_metadata():
     )
 
     assert result.application_name == "Acme Portal"
+
+def test_link_text_is_extracted():
+    parser = HTMLParser()
+
+    html = """
+    <html>
+        <body>
+            <a href="/products">Our Products</a>
+        </body>
+    </html>
+    """
+
+    page = parser.parse(
+        html,
+        "https://example.com/",
+    )
+
+    assert page.links[0].url == (
+        "https://example.com/products"
+    )
+
+    assert page.links[0].text == "Our Products"

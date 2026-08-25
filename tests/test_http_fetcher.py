@@ -138,3 +138,43 @@ def test_connection_error():
     assert result.error.startswith("Request failed:")
 
     client.close()
+
+def test_detect_blocked_page():
+    html = """
+    <html>
+        <body>
+            <h1>Your request has been blocked.</h1>
+        </body>
+    </html>
+    """
+
+    assert HTTPFetcher._is_blocked_page(html) is True
+
+
+def test_detect_cloudflare_challenge():
+    html = """
+    <html>
+        <body>
+            <h1>Checking your browser</h1>
+            <p>Cloudflare security check</p>
+        </body>
+    </html>
+    """
+
+    assert HTTPFetcher._is_blocked_page(html) is True
+
+
+def test_normal_page_is_not_blocked():
+    html = """
+    <html>
+        <head>
+            <title>Example Technologies</title>
+        </head>
+        <body>
+            <h1>Example Technologies</h1>
+            <p>We build software products.</p>
+        </body>
+    </html>
+    """
+
+    assert HTTPFetcher._is_blocked_page(html) is False

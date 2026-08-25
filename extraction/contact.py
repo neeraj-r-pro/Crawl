@@ -13,6 +13,12 @@ class ContactExtractor:
         r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b"
     )
 
+    # Specific placeholder addresses that should not be treated
+    # as real company contact information.
+    PLACEHOLDER_EMAILS = {
+        "example@email.com",
+    }
+
     def extract(self, page: ParsedPage) -> dict:
         """Extract and return contact information."""
 
@@ -26,37 +32,68 @@ class ContactExtractor:
         }
 
     def _extract_emails(self, page: ParsedPage) -> list[str]:
+        """Extract valid email addresses from the page."""
+
         emails = set()
 
+        # Extract emails from mailto links.
         for link in page.links:
-            if link.link_type == "email":
-                email = link.url.replace("mailto:", "").split("?")[0]
-                email = email.strip().lower()
+            if link.link_type != "email":
+                continue
 
-                if email:
-                    emails.add(email)
+            email = (
+                link.url
+                .replace("mailto:", "")
+                .split("?")[0]
+                .strip()
+                .lower()
+            )
 
+            if email and not self._is_placeholder_email(email):
+                emails.add(email)
+
+        # Extract emails from visible page text.
         text = " ".join(page.paragraphs)
 
         for email in self.EMAIL_PATTERN.findall(text):
-            emails.add(email.lower())
+            email = email.lower()
+
+            if not self._is_placeholder_email(email):
+                emails.add(email)
 
         return sorted(emails)
 
-    def _extract_phone_numbers(self, page: ParsedPage) -> list[str]:
+    @classmethod
+    def _is_placeholder_email(cls, email: str) -> bool:
+        """Return True when the email is a known placeholder."""
+
+        return email.strip().lower() in cls.PLACEHOLDER_EMAILS
+
+    def _extract_phone_numbers(
+        self,
+        page: ParsedPage,
+    ) -> list[str]:
+        """Extract and normalize phone numbers."""
+
         phones = set()
 
+        # Extract phone numbers from tel links.
         for link in page.links:
             if link.link_type != "phone":
                 continue
 
-            raw_phone = link.url.replace("tel:", "").split("?")[0]
+            raw_phone = (
+                link.url
+                .replace("tel:", "")
+                .split("?")[0]
+            )
 
             normalized = self._normalize_phone(raw_phone)
 
             if normalized:
                 phones.add(normalized)
 
+        # Extract phone numbers from visible page text.
         text = " ".join(page.paragraphs)
 
         for match in re.findall(

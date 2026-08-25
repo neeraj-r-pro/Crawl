@@ -1,16 +1,21 @@
-from collections import deque
+import heapq
+from itertools import count
 
 
 class CrawlQueue:
-    """Manage pending and visited URLs during a crawl."""
+    """Manage pending and visited URLs during a prioritized crawl."""
 
     def __init__(self) -> None:
-        self._pending: deque[str] = deque()
+        self._pending: list[tuple[int, int, str]] = []
+        self._pending_urls: set[str] = set()
         self._visited: set[str] = set()
+        self._counter = count()
 
-    def add(self, url: str) -> bool:
+    def add(self, url: str, priority: int = 0) -> bool:
         """
         Add a URL to the queue.
+
+        Higher priority URLs are returned first.
 
         Returns True when the URL was added.
         Returns False when it was already queued or visited.
@@ -19,21 +24,28 @@ class CrawlQueue:
         if url in self._visited:
             return False
 
-        if url in self._pending:
+        if url in self._pending_urls:
             return False
 
-        self._pending.append(url)
+        # heapq is a min-heap, so negate priority.
+        heapq.heappush(
+            self._pending,
+            (-priority, next(self._counter), url),
+        )
+
+        self._pending_urls.add(url)
 
         return True
 
     def next(self) -> str | None:
-        """Return the next pending URL and mark it as visited."""
+        """Return the highest-priority pending URL."""
 
         if not self._pending:
             return None
 
-        url = self._pending.popleft()
+        _, _, url = heapq.heappop(self._pending)
 
+        self._pending_urls.remove(url)
         self._visited.add(url)
 
         return url

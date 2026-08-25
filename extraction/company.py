@@ -1,3 +1,4 @@
+from extraction.category import CategoryExtractor
 from extraction.company_name import CompanyNameExtractor
 from extraction.contact import ContactExtractor
 from extraction.description import DescriptionExtractor
@@ -12,6 +13,7 @@ class CompanyExtractor:
         self.name_extractor = CompanyNameExtractor()
         self.contact_extractor = ContactExtractor()
         self.description_extractor = DescriptionExtractor()
+        self.category_extractor = CategoryExtractor()
 
     def extract(self, page: ParsedPage) -> Company:
         name = self.name_extractor.extract(page)
@@ -20,19 +22,24 @@ class CompanyExtractor:
 
         contact_data = self.contact_extractor.extract(page)
 
+        category_data = self.category_extractor.extract(page)
+
         return Company(
             name=name or "Unknown Company",
             website=page.url,
             description=description,
-            products=[],
-            services=[],
-            solutions=[],
-            industries=[],
-            locations=[],
+
+            products=category_data["products"],
+            services=category_data["services"],
+            solutions=category_data["solutions"],
+            industries=category_data["industries"],
+            locations=category_data["locations"],
+
             contact=ContactInfo(
                 emails=contact_data["emails"],
                 phone_numbers=contact_data["phone_numbers"],
                 addresses=contact_data["addresses"],
             ),
+
             social_profiles=[],
         )

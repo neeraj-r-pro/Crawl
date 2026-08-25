@@ -167,3 +167,101 @@ def test_crawler_does_not_crawl_duplicate_urls():
     assert fetcher.urls_fetched.count(
         "https://acme.com/"
     ) == 1
+
+
+def test_crawler_merges_data_from_multiple_pages():
+
+    pages = {
+        "https://example.com/": """
+            <html>
+            <head>
+                <title>Example Technologies</title>
+                <meta
+                    name="description"
+                    content="A software company."
+                >
+            </head>
+            <body>
+                <h1>Example Technologies</h1>
+
+                <a href="/products">Products</a>
+                <a href="/contact">Contact</a>
+            </body>
+            </html>
+        """,
+
+        "https://example.com/products": """
+            <html>
+            <head>
+                <title>Products</title>
+            </head>
+            <body>
+                <h1>Products</h1>
+
+                <p>Cloud Platform</p>
+                <p>Analytics Platform</p>
+
+                <a href="/">Home</a>
+            </body>
+            </html>
+        """,
+
+        "https://example.com/contact": """
+            <html>
+            <head>
+                <title>Contact</title>
+            </head>
+            <body>
+                <h1>Contact Us</h1>
+
+                <p>info@example.com</p>
+
+                <a href="tel:+919876543210">
+                    Call us
+                </a>
+
+                <a href="/">Home</a>
+            </body>
+            </html>
+        """,
+    }
+
+    class FakeHTTPFetcher:
+
+        def fetch(self, url: str) -> FetchResult:
+
+            html = pages[url]
+
+            return FetchResult(
+                url=url,
+                final_url=url,
+                status_code=200,
+                content_type="text/html",
+                html=html,
+            )
+
+    crawler = CompanyCrawler(
+        fetcher=FakeHTTPFetcher()
+    )
+
+    company = crawler.crawl(
+        "https://example.com",
+        max_pages=3,
+    )
+
+    assert company.name == "Example Technologies"
+
+    assert company.description == (
+        "A software company."
+    )
+
+    assert "Cloud Platform" in company.products
+    assert "Analytics Platform" in company.products
+
+    assert company.contact.emails == [
+        "info@example.com"
+    ]
+
+    assert company.contact.phone_numbers == [
+        "+919876543210"
+    ]

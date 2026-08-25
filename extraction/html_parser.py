@@ -7,6 +7,7 @@ from bs4 import BeautifulSoup
 class LinkInfo:
     url: str
     link_type: str
+    text: str = ""
 
 @dataclass
 class ParsedPage:
@@ -53,6 +54,8 @@ class HTMLParser:
             if not href:
                 continue
 
+            link_text = anchor.get_text(" ", strip=True)
+
             link_type = self._classify_link(href)
 
             if link_type in {"email", "phone"}:
@@ -68,6 +71,7 @@ class HTMLParser:
                 LinkInfo(
                     url=normalized_url,
                     link_type=link_type,
+                    text=link_text,
                 )
             )
 

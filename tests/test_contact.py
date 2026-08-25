@@ -163,3 +163,45 @@ def test_contact_result_contains_addresses():
     result = extractor.extract(page)
 
     assert result["addresses"] == []
+
+def test_ignore_example_email_domain():
+    html = """
+    <html>
+        <body>
+            <p>
+                Contact us at example@email.com
+            </p>
+        </body>
+    </html>
+    """
+
+    page = create_page(html)
+
+    extractor = ContactExtractor()
+
+    result = extractor.extract(page)
+
+    assert result["emails"] == []
+
+
+def test_keep_real_email_when_example_email_is_present():
+    html = """
+    <html>
+        <body>
+            <p>
+                Example: example@email.com
+                Real: sales@acme.com
+            </p>
+        </body>
+    </html>
+    """
+
+    page = create_page(html)
+
+    extractor = ContactExtractor()
+
+    result = extractor.extract(page)
+
+    assert result["emails"] == [
+        "sales@acme.com"
+    ]
