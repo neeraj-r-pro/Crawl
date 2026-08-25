@@ -329,3 +329,101 @@ def test_ignore_long_product_description():
         "CCTV",
         "Automatic Doors",
     ]
+
+def test_bonc_product_listing_ignores_metadata_and_ctas():
+    page = parse_page(
+        """
+        <html>
+        <body>
+            <h1>Mechanical Parts & Spares</h1>
+
+            <h2>Seals, Oil Seals & Industrial Seals</h2>
+            <h2>Screws & Screw Accessories</h2>
+            <h2>Industrial Valves & Valve Fittings</h2>
+
+            <p>Ask for quote</p>
+            <p>B P TRADING CO</p>
+            <p>Location KOLKATA</p>
+            <p>GST Verified</p>
+            <p>Verified Business</p>
+            <p>Available from Jan 2026</p>
+        </body>
+        </html>
+        """,
+        "https://www.boncnetwork.com/categories/mechanical-parts-spares",
+    )
+
+    extractor = CategoryExtractor()
+
+    result = extractor.extract(page)
+
+    assert result["products"] == [
+        "Seals, Oil Seals & Industrial Seals",
+        "Screws & Screw Accessories",
+        "Industrial Valves & Valve Fittings",
+    ]
+
+
+def test_bonc_filter_product_listing_extracts_products():
+    page = parse_page(
+        """
+        <html>
+        <body>
+            <h1>Products</h1>
+
+            <h2>Geared Traveling Trolley</h2>
+            <h2>BPT Premium Electric Winch</h2>
+            <h2>Wire Rope Thimble</h2>
+            <h2>Forged D Shackle</h2>
+
+            <p>Ask for quote</p>
+            <p>GST Verified</p>
+            <p>Verified Business</p>
+        </body>
+        </html>
+        """,
+        "https://www.boncnetwork.com/filter-product-listing",
+    )
+
+    extractor = CategoryExtractor()
+
+    result = extractor.extract(page)
+
+    assert result["products"] == [
+        "Geared Traveling Trolley",
+        "BPT Premium Electric Winch",
+        "Wire Rope Thimble",
+        "Forged D Shackle",
+    ]
+
+
+def test_bonc_industries_page_does_not_treat_description_as_industry():
+    page = parse_page(
+        """
+        <html>
+        <body>
+            <h1>Explore by Industry</h1>
+
+            <h2>Furniture, Fittings, Fixtures & Furniture Hardware</h2>
+            <h2>Electronics & Electrical</h2>
+            <h2>Software Services</h2>
+
+            <p>
+                Discover the top enterprises in this industry and connect
+                with verified businesses.
+            </p>
+        </body>
+        </html>
+        """,
+        "https://www.boncnetwork.com/industries",
+    )
+
+    extractor = CategoryExtractor()
+
+    result = extractor.extract(page)
+
+    assert result["industries"] == [
+        "Furniture, Fittings, Fixtures & Furniture Hardware",
+        "Electronics & Electrical",
+        "Software Services",
+    ]

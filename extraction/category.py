@@ -1,141 +1,94 @@
+import re
+
 from extraction.html_parser import ParsedPage
 
 
 class CategoryExtractor:
-    """
-    Extract business categories from a parsed page.
+    """Extract business categories from parsed webpages."""
 
-    Supported:
-        - products
-        - services
-        - solutions
-        - industries
-        - locations
-
-    The extractor is intentionally conservative. It tries to return
-    actual business/category names rather than navigation, descriptions,
-    CTAs, footer content, or generic company text.
-    """
-
-    MAX_ITEM_LENGTH = 120
-    MAX_DESCRIPTION_WORDS = 18
-
-    CATEGORY_WORDS = {
-        "products",
-        "product",
-        "services",
-        "service",
-        "solutions",
-        "solution",
-        "industries",
-        "industry",
-        "locations",
-        "location",
-        "categories",
-        "category",
+    CATEGORY_KEYWORDS = {
+        "products": {
+            "product",
+            "products",
+            "product-listing",
+            "product-list",
+            "catalog",
+            "catalogue",
+            "category",
+            "categories",
+        },
+        "services": {
+            "service",
+            "services",
+        },
+        "solutions": {
+            "solution",
+            "solutions",
+        },
+        "industries": {
+            "industry",
+            "industries",
+        },
+        "locations": {
+            "location",
+            "locations",
+            "branches",
+            "offices",
+        },
     }
 
-    IGNORED_EXACT = {
-        "products",
-        "product",
-        "our products",
-        "services",
-        "service",
-        "our services",
-        "solutions",
-        "solution",
-        "our solutions",
-        "industries",
-        "industry",
-        "our industries",
-        "industries we serve",
-        "industries served",
-        "industry we serve",
-        "locations",
-        "location",
-        "our locations",
-        "office location",
-        "office locations",
-        "categories",
-        "category",
-        "our categories",
-        "contact",
-        "contact us",
-        "contact info",
-        "contact information",
-        "about",
-        "about us",
-        "home",
-        "menu",
-        "navigation menu",
-        "site-wide links",
-        "footer",
-        "our mission",
-        "our vision",
-        "our address",
-        "frequently asked questions",
-        "faq",
-        "faqs",
-        "learn more",
-        "read more",
-        "click here",
-        "explore",
-        "explore more",
-        "explore product industry",
-        "explore by industry",
-        "no products found",
-    }
+    IGNORE_TEXT_PATTERNS = [
+        r"^ask\s+for\s+quote$",
+        r"^request\s+(a\s+)?quote$",
+        r"^get\s+(a\s+)?quote$",
+        r"^contact\s+us$",
+        r"^contact$",
+        r"^get\s+in\s+touch$",
+        r"^email\s*:",
+        r"^phone\s*:",
+        r"^tel\s*:",
+        r"^mobile\s*:",
+        r"^fax\s*:",
+        r"^address\s*:",
+        r"^location\s+",
+        r"^gst\s+verified$",
+        r"^verified\s+business$",
+        r"^verified$",
+        r"^available\s+from\s+",
+        r"^no\s+products?\s+found",
+        r"^welcome\s+to\s+",
+        r"^our\s+mission$",
+        r"^our\s+vision$",
+        r"^our\s+address$",
+        r"^contact\s+info",
+        r"^about\s+",
+        r"^©",
+        r"all\s+rights\s+reserved",
+    ]
 
-    IGNORED_PREFIXES = (
-        "copyright",
-        "privacy policy",
-        "terms of",
-        "all rights reserved",
-        "email:",
-        "phone:",
-        "fax:",
-        "address:",
-        "contact:",
-        "follow us",
-        "subscribe",
-    )
+    MAX_ITEM_LENGTH = 150
 
-    # Generic navigation / marketing phrases that commonly appear
-    # on dynamically rendered business websites.
-    IGNORED_PHRASES = (
-        "site-wide links",
-        "navigation menu",
-        "main menu",
-        "footer menu",
-        "quick links",
-        "useful links",
-        "learn more",
-        "read more",
-        "click here",
-        "view all",
-        "view more",
-        "see all",
-        "explore more",
-        "get started",
-        "sign up",
-        "log in",
-        "login",
-        "register",
-        "contact us",
-        "about us",
-        "know more",
-        "discover more",
-        "frequently asked questions",
-        "no products found",
-    )
+    # Words that frequently indicate that a heading is marketing/UI
+    # content rather than a product/service/category.
+    NOISE_HEADING_PATTERNS = [
+        r"\bwhy\s+choose\b",
+        r"\bneed\s+.*\bfast\b",
+        r"\bupcoming\b",
+        r"\bevents?\b",
+        r"\btop\s+in\b",
+        r"\brecently\s+added\b",
+        r"\bplatform\s+highlights?\b",
+        r"\bjoin\s+.*\bbusiness",
+        r"\b24\s*/\s*7\b",
+        r"\bnotifications?\b",
+        r"\blead\s+management\b",
+        r"\barticles?\b",
+        r"\babout\s+",
+        r"\bcontact\s+",
+        r"\boffice\s+",
+    ]
 
     def extract(self, page: ParsedPage) -> dict[str, list[str]]:
-        """
-        Extract categories from a single parsed page.
-        """
-
-        categories = self._detect_page_categories(page)
-
         result = {
             "products": [],
             "services": [],
@@ -144,605 +97,108 @@ class CategoryExtractor:
             "locations": [],
         }
 
-        if not categories:
+        page_type = self._detect_page_type(page)
+
+        if page_type is None:
             return result
 
-        items = self._collect_text(page)
+        if page_type == "products":
+            result["products"] = self._extract_products(page)
 
-        for category in categories:
-            result[category] = self._extract_items(
-                items,
-                category,
-                page,
-            )
+        elif page_type == "services":
+            result["services"] = self._extract_services(page)
+
+        elif page_type == "solutions":
+            result["solutions"] = self._extract_section(page)
+
+        elif page_type == "industries":
+            result["industries"] = self._extract_section(page)
+
+        elif page_type == "locations":
+            result["locations"] = self._extract_section(page)
 
         return result
 
-    # =========================================================
-    # PAGE CATEGORY DETECTION
-    # =========================================================
+    # ---------------------------------------------------------------
+    # PAGE TYPE DETECTION
+    # ---------------------------------------------------------------
 
-    def _detect_page_categories(
-        self,
-        page: ParsedPage,
-    ) -> set[str]:
+    def _detect_page_type(self, page: ParsedPage) -> str | None:
         """
-        Determine what kind of business information the page contains.
+        Determine the type of page using strong signals first.
 
-        Uses:
-            - URL
-            - page title
-            - headings
-        """
+        Priority:
+            1. URL/path
+            2. Exact heading/title matches
+            3. Heading phrase matches
+            4. Title phrase matches
 
-        categories = set()
-
-        # -----------------------------------------------------
-        # URL is particularly useful for BONC-style pages.
-        # -----------------------------------------------------
-
-        url = (page.url or "").lower()
-
-        path = url.split("?", 1)[0].rstrip("/")
-
-        if self._url_contains(path, "product"):
-            categories.add("products")
-
-        if self._url_contains(path, "catalog"):
-            categories.add("products")
-
-        if self._url_contains(path, "category"):
-            categories.add("products")
-
-        if self._url_contains(path, "categories"):
-            categories.add("products")
-
-        if self._url_contains(path, "filter-product-listing"):
-            categories.add("products")
-
-        if self._url_contains(path, "service"):
-            categories.add("services")
-
-        if self._url_contains(path, "solution"):
-            categories.add("solutions")
-
-        if self._url_contains(path, "industr"):
-            categories.add("industries")
-
-        if self._url_contains(path, "location"):
-            categories.add("locations")
-
-        # -----------------------------------------------------
-        # Title + headings
-        # -----------------------------------------------------
-
-        texts = []
-
-        if page.title:
-            texts.append(page.title)
-
-        texts.extend(page.headings)
-
-        for text in texts:
-            normalized = self._normalize(text)
-
-            if not normalized:
-                continue
-
-            # PRODUCTS
-            if self._is_product_heading(normalized):
-                categories.add("products")
-
-            # SERVICES
-            if self._is_service_heading(normalized):
-                categories.add("services")
-
-            # SOLUTIONS
-            if self._is_solution_heading(normalized):
-                categories.add("solutions")
-
-            # INDUSTRIES
-            if self._is_industry_heading(normalized):
-                categories.add("industries")
-
-            # LOCATIONS
-            if self._is_location_heading(normalized):
-                categories.add("locations")
-
-        return categories
-
-    # =========================================================
-    # CATEGORY HEADING DETECTION
-    # =========================================================
-
-    @staticmethod
-    def _is_product_heading(text: str) -> bool:
-        return (
-            text in {
-                "product",
-                "products",
-                "our products",
-                "product list",
-                "product listing",
-                "product listings",
-                "products list",
-                "products listing",
-                "product catalog",
-                "product catalogue",
-                "catalog",
-                "catalogue",
-                "categories",
-                "category",
-                "product categories",
-            }
-            or "products we offer" in text
-            or "products we provide" in text
-            or "our product range" in text
-            or "product range" in text
-            or "product listing" in text
-            or "product catalog" in text
-            or "product catalogue" in text
-            or "explore product" in text
-        )
-
-    @staticmethod
-    def _is_service_heading(text: str) -> bool:
-        return (
-            text in {
-                "service",
-                "services",
-                "our services",
-                "service list",
-                "service listing",
-                "service offerings",
-            }
-            or "services we offer" in text
-            or "services we provide" in text
-            or "our service" in text
-            or "service offering" in text
-        )
-
-    @staticmethod
-    def _is_solution_heading(text: str) -> bool:
-        return (
-            text in {
-                "solution",
-                "solutions",
-                "our solutions",
-                "solution list",
-                "solution offering",
-                "solution offerings",
-            }
-            or "solutions we offer" in text
-            or "solutions we provide" in text
-            or "our solution" in text
-        )
-
-    @staticmethod
-    def _is_industry_heading(text: str) -> bool:
-        return (
-            text in {
-                "industry",
-                "industries",
-                "our industries",
-                "industries we serve",
-                "industries served",
-                "industry we serve",
-                "industry served",
-                "industries we work with",
-                "industries we support",
-            }
-            or "by industry" in text
-            or "by industries" in text
-            or "explore by industry" in text
-            or "explore industries" in text
-            or "industry we" in text
-            or "industries we" in text
-        )
-
-    @staticmethod
-    def _is_location_heading(text: str) -> bool:
-        return (
-            text in {
-                "location",
-                "locations",
-                "our locations",
-                "office location",
-                "office locations",
-                "locations we serve",
-                "locations served",
-                "our offices",
-                "offices",
-                "branches",
-                "our branches",
-            }
-            or "locations we serve" in text
-            or "locations served" in text
-            or "find us" in text
-        )
-
-    # =========================================================
-    # TEXT COLLECTION
-    # =========================================================
-
-    def _collect_text(
-        self,
-        page: ParsedPage,
-    ) -> list[str]:
-        """
-        Collect useful visible text.
-
-        Headings are collected first, then paragraphs.
+        We deliberately do NOT classify a page simply because a random
+        piece of text contains the word "product", "service", etc.
         """
 
-        items = []
+        url = self._normalize(page.url or "")
+        title = self._normalize(page.title or "")
+        headings = [
+            self._clean_text(h)
+            for h in (page.headings or [])
+            if self._clean_text(h)
+        ]
 
-        for heading in page.headings:
-            cleaned = self._clean_item(heading)
+        # -----------------------------------------------------------
+        # 1. URL is the strongest signal.
+        # -----------------------------------------------------------
 
-            if cleaned:
-                items.append(cleaned)
+        url_type = self._type_from_url(url)
 
-        for paragraph in page.paragraphs:
-            cleaned = self._clean_item(paragraph)
+        if url_type:
+            return url_type
 
-            if cleaned:
-                items.append(cleaned)
+        # -----------------------------------------------------------
+        # 2. Exact heading matches.
+        # -----------------------------------------------------------
 
-        return self._deduplicate(items)
+        for heading in headings:
+            exact_type = self._exact_heading_type(heading)
 
-    # =========================================================
-    # CATEGORY ITEM EXTRACTION
-    # =========================================================
+            if exact_type:
+                return exact_type
 
-    def _extract_items(
-        self,
-        items: list[str],
-        category: str,
-        page: ParsedPage,
-    ) -> list[str]:
+        # -----------------------------------------------------------
+        # 3. Strong heading phrases.
+        # -----------------------------------------------------------
 
-        result = []
+        for heading in headings:
+            heading_type = self._type_from_heading_phrase(heading)
 
-        for item in items:
-            if not self._is_valid_item(
-                item,
-                category,
-                page,
-            ):
-                continue
+            if heading_type:
+                return heading_type
 
-            result.append(item)
+        # -----------------------------------------------------------
+        # 4. Title.
+        # -----------------------------------------------------------
 
-        return self._deduplicate(result)
+        title_type = self._type_from_title(title)
 
-    # =========================================================
-    # ITEM VALIDATION
-    # =========================================================
+        if title_type:
+            return title_type
 
-    def _is_valid_item(
-        self,
-        item: str,
-        category: str,
-        page: ParsedPage,
-    ) -> bool:
+        return None
 
-        normalized = self._normalize(item)
+    def _type_from_url(self, url: str) -> str | None:
+        if not url:
+            return None
 
-        if not normalized:
-            return False
-
-        # -----------------------------------------------------
-        # Never return category headings.
-        # -----------------------------------------------------
-
-        if normalized in self.IGNORED_EXACT:
-            return False
-
-        # -----------------------------------------------------
-        # Footer/legal/contact content.
-        # -----------------------------------------------------
-
-        if any(
-            normalized.startswith(prefix)
-            for prefix in self.IGNORED_PREFIXES
-        ):
-            return False
-
-        if any(
-            phrase in normalized
-            for phrase in self.IGNORED_PHRASES
-        ):
-            return False
-
-        # -----------------------------------------------------
-        # Email addresses.
-        # -----------------------------------------------------
-
-        if "@" in item:
-            return False
-
-        # -----------------------------------------------------
-        # Phone numbers.
-        # -----------------------------------------------------
-
-        if self._contains_phone_number(item):
-            return False
-
-        # -----------------------------------------------------
-        # URLs.
-        # -----------------------------------------------------
-
-        if self._looks_like_url(item):
-            return False
-
-        # -----------------------------------------------------
-        # Very long descriptions.
-        # -----------------------------------------------------
-
-        if len(item) > self.MAX_ITEM_LENGTH:
-            return False
-
-        # -----------------------------------------------------
-        # Sentence-like descriptions.
-        # -----------------------------------------------------
-
-        if self._looks_like_description(item):
-            return False
-
-        # -----------------------------------------------------
-        # Generic company content.
-        # -----------------------------------------------------
-
-        if self._is_generic_company_text(item):
-            return False
-
-        # -----------------------------------------------------
-        # Category-specific rules.
-        # -----------------------------------------------------
-
-        if category == "products":
-            if not self._looks_like_business_item(item):
-                return False
-
-        elif category == "services":
-            if not self._looks_like_business_item(item):
-                return False
-
-        elif category == "solutions":
-            if not self._looks_like_business_item(item):
-                return False
-
-        elif category == "industries":
-            if not self._looks_like_business_item(item):
-                return False
-
-        elif category == "locations":
-            if not self._looks_like_business_item(item):
-                return False
-
-        return True
-
-    # =========================================================
-    # BUSINESS ITEM DETECTION
-    # =========================================================
-
-    def _looks_like_business_item(
-        self,
-        text: str,
-    ) -> bool:
-        """
-        Determine whether text looks like a business/category name
-        rather than a sentence or navigation element.
-        """
-
-        words = text.split()
-
-        if not words:
-            return False
-
-        # Extremely long phrases are normally descriptions.
-        if len(words) > 12:
-            return False
-
-        lower = text.lower()
-
-        # CTA / navigation style text.
-        bad_starts = (
-            "discover ",
-            "explore ",
-            "learn ",
-            "find ",
-            "get ",
-            "join ",
-            "view ",
-            "see ",
-            "click ",
-            "welcome ",
-            "this is ",
-            "who all ",
-            "how ",
-            "why ",
-            "what ",
+        # Remove protocol/domain noise and inspect URL path.
+        path = re.sub(
+            r"^https?://[^/]+",
+            "",
+            url,
+            flags=re.IGNORECASE,
         )
 
-        if lower.startswith(bad_starts):
-            return False
-
-        # Question-like text.
-        if "?" in text:
-            return False
-
-        # Common sentence indicators.
-        sentence_words = {
-            "we",
-            "our",
-            "you",
-            "your",
-            "this",
-            "these",
-            "those",
-            "the",
-            "is",
-            "are",
-            "was",
-            "were",
-            "provides",
-            "provide",
-            "helps",
-            "help",
-            "offers",
-            "offer",
-            "designed",
-            "includes",
-            "include",
-        }
-
-        first_word = words[0].lower()
-
-        if first_word in sentence_words and len(words) > 2:
-            return False
-
-        return True
-
-    # =========================================================
-    # GENERIC COMPANY CONTENT
-    # =========================================================
-
-    def _is_generic_company_text(
-        self,
-        text: str,
-    ) -> bool:
-
-        normalized = self._normalize(text)
-
-        generic_phrases = (
-            "welcome to ",
-            "our mission",
-            "our vision",
-            "our address",
-            "contact info",
-            "contact information",
-            "site-wide links",
-            "navigation menu",
-            "frequently asked questions",
-            "learn more",
-            "read more",
-            "click here",
-            "no products found",
-            "all rights reserved",
-            "privacy policy",
-            "terms and conditions",
-            "terms of use",
-            "follow us",
-            "subscribe",
-            "sign in",
-            "sign up",
-            "create account",
-        )
-
-        for phrase in generic_phrases:
-            if normalized.startswith(phrase):
-                return True
-
-        return False
-
-    # =========================================================
-    # DESCRIPTION DETECTION
-    # =========================================================
-
-    def _looks_like_description(
-        self,
-        text: str,
-    ) -> bool:
-
-        words = text.split()
-
-        if not words:
-            return False
-
-        # Short category/product/service names are valid.
-        if len(words) <= 6 and not text.endswith("."):
-            return False
-
-        # Long paragraphs are descriptions.
-        if len(words) > self.MAX_DESCRIPTION_WORDS:
-            return True
-
-        # Sentences ending with punctuation are usually descriptions.
-        if text.endswith("."):
-            return True
-
-        lower = text.lower()
-
-        description_starts = (
-            "we ",
-            "our ",
-            "the ",
-            "this ",
-            "these ",
-            "discover ",
-            "learn ",
-            "join ",
-            "get ",
-            "find ",
-            "provides ",
-            "provide ",
-            "offering ",
-            "designed ",
-            "welcome ",
-            "experts ",
-            "helping ",
-            "helps ",
-        )
-
-        if lower.startswith(description_starts):
-            return True
-
-        return False
-
-    # =========================================================
-    # PHONE DETECTION
-    # =========================================================
-
-    @staticmethod
-    def _contains_phone_number(
-        text: str,
-    ) -> bool:
-
-        digits = sum(
-            character.isdigit()
-            for character in text
-        )
-
-        return digits >= 7
-
-    # =========================================================
-    # URL DETECTION
-    # =========================================================
-
-    @staticmethod
-    def _looks_like_url(
-        text: str,
-    ) -> bool:
-
-        lower = text.lower().strip()
-
-        return (
-            lower.startswith("http://")
-            or lower.startswith("https://")
-            or lower.startswith("www.")
-        )
-
-    # =========================================================
-    # URL CATEGORY HELPERS
-    # =========================================================
-
-    @staticmethod
-    def _url_contains(
-        path: str,
-        value: str,
-    ) -> bool:
+        path = path.split("?", 1)[0]
+        path = path.split("#", 1)[0]
 
         segments = [
             segment
@@ -750,62 +206,527 @@ class CategoryExtractor:
             if segment
         ]
 
-        value = value.lower()
+        # Check the most specific path segment first.
+        for segment in reversed(segments):
+            normalized = self._normalize(segment)
 
-        return any(
-            value in segment.lower()
-            for segment in segments
-        )
+            if not normalized:
+                continue
 
-    # =========================================================
-    # CLEANING
-    # =========================================================
+            category_type = self._exact_keyword_type(normalized)
 
-    @staticmethod
-    def _clean_item(
+            if category_type:
+                return category_type
+
+            # Handle compound URL segments such as:
+            # product-listing
+            # product-list
+            # filter-product-listing
+            # our-services
+            for category, keywords in self.CATEGORY_KEYWORDS.items():
+                for keyword in keywords:
+                    keyword_normalized = self._normalize(keyword)
+
+                    if (
+                        keyword_normalized
+                        and keyword_normalized in normalized
+                    ):
+                        return category
+
+        return None
+
+    def _exact_heading_type(
+        self,
+        heading: str,
+    ) -> str | None:
+        normalized = self._normalize(heading)
+
+        exact_matches = {
+            "product": "products",
+            "products": "products",
+            "our products": "products",
+            "services": "services",
+            "service": "services",
+            "our services": "services",
+            "solutions": "solutions",
+            "solution": "solutions",
+            "our solutions": "solutions",
+            "industries": "industries",
+            "industry": "industries",
+            "our industries": "industries",
+            "industries we serve": "industries",
+            "explore by industry": "industries",
+            "explore product industry": "industries",
+            "locations": "locations",
+            "location": "locations",
+            "our locations": "locations",
+            "branches": "locations",
+            "offices": "locations",
+        }
+
+        return exact_matches.get(normalized)
+
+    def _type_from_heading_phrase(
+        self,
+        heading: str,
+    ) -> str | None:
+        normalized = self._normalize(heading)
+
+        if not normalized:
+            return None
+
+        # Strong phrases only.
+        phrase_matches = [
+            (
+                "industries",
+                [
+                    "industries we serve",
+                    "explore by industry",
+                    "explore product industry",
+                    "industry we serve",
+                ],
+            ),
+            (
+                "products",
+                [
+                    "product listing",
+                    "product listings",
+                    "product catalogue",
+                    "product catalog",
+                    "product list",
+                ],
+            ),
+            (
+                "services",
+                [
+                    "our services",
+                    "services we provide",
+                    "services we offer",
+                ],
+            ),
+            (
+                "solutions",
+                [
+                    "our solutions",
+                    "solutions we provide",
+                    "solutions we offer",
+                ],
+            ),
+            (
+                "locations",
+                [
+                    "our locations",
+                    "our branches",
+                    "our offices",
+                    "find us",
+                ],
+            ),
+        ]
+
+        for category, phrases in phrase_matches:
+            for phrase in phrases:
+                if phrase in normalized:
+                    return category
+
+        return None
+
+    def _type_from_title(
+        self,
+        title: str,
+    ) -> str | None:
+        if not title:
+            return None
+
+        # Titles can contain company names, so only use strong phrases.
+        exact = self._exact_heading_type(title)
+
+        if exact:
+            return exact
+
+        title_patterns = [
+            (r"\bproducts?\b", "products"),
+            (r"\bservices?\b", "services"),
+            (r"\bsolutions?\b", "solutions"),
+            (r"\bindustr(?:y|ies)\b", "industries"),
+            (r"\blocations?\b", "locations"),
+            (r"\bbranches\b", "locations"),
+            (r"\boffices\b", "locations"),
+        ]
+
+        for pattern, category in title_patterns:
+            if re.search(pattern, title):
+                return category
+
+        return None
+
+    def _exact_keyword_type(
+        self,
         text: str,
     ) -> str | None:
+        for category, keywords in self.CATEGORY_KEYWORDS.items():
+            for keyword in keywords:
+                if self._normalize(keyword) == text:
+                    return category
+
+        return None
+
+    # ---------------------------------------------------------------
+    # PRODUCTS
+    # ---------------------------------------------------------------
+
+    def _extract_products(
+        self,
+        page: ParsedPage,
+    ) -> list[str]:
+        """
+        Extract product names primarily from subordinate headings.
+
+        This avoids treating arbitrary homepage paragraphs or marketing
+        text as products.
+        """
+
+        headings = self._clean_candidates(page.headings)
+
+        if len(headings) > 1:
+            candidates = self._select_subordinate_headings(headings)
+
+            if candidates:
+                return self._deduplicate(candidates)
+
+        # If there is only one heading, do not automatically treat it
+        # as a product. It is normally the page title.
+        #
+        # Paragraph fallback is deliberately conservative.
+        candidates = []
+
+        for paragraph in page.paragraphs:
+            paragraph = self._clean_text(paragraph)
+
+            if not self._is_valid_category_item(paragraph):
+                continue
+
+            if self._looks_like_description(paragraph):
+                continue
+
+            if self._looks_like_ui_or_marketing(paragraph):
+                continue
+
+            candidates.append(paragraph)
+
+        return self._deduplicate(candidates)
+
+    # ---------------------------------------------------------------
+    # SERVICES
+    # ---------------------------------------------------------------
+
+    def _extract_services(
+        self,
+        page: ParsedPage,
+    ) -> list[str]:
+        headings = self._clean_candidates(page.headings)
+
+        if len(headings) > 1:
+            candidates = self._select_subordinate_headings(headings)
+
+            if candidates:
+                return self._deduplicate(candidates)
+
+        candidates = []
+
+        for paragraph in page.paragraphs:
+            paragraph = self._clean_text(paragraph)
+
+            if not self._is_valid_category_item(paragraph):
+                continue
+
+            if self._looks_like_description(paragraph):
+                continue
+
+            if self._looks_like_ui_or_marketing(paragraph):
+                continue
+
+            candidates.append(paragraph)
+
+        return self._deduplicate(candidates)
+
+    # ---------------------------------------------------------------
+    # SOLUTIONS / INDUSTRIES / LOCATIONS
+    # ---------------------------------------------------------------
+
+    def _extract_section(
+        self,
+        page: ParsedPage,
+    ) -> list[str]:
+        headings = self._clean_candidates(page.headings)
+
+        if len(headings) > 1:
+            candidates = self._select_subordinate_headings(headings)
+
+            if candidates:
+                return self._deduplicate(candidates)
+
+        candidates = []
+
+        for paragraph in page.paragraphs:
+            paragraph = self._clean_text(paragraph)
+
+            if not self._is_valid_category_item(paragraph):
+                continue
+
+            if self._looks_like_description(paragraph):
+                continue
+
+            if self._looks_like_ui_or_marketing(paragraph):
+                continue
+
+            candidates.append(paragraph)
+
+        return self._deduplicate(candidates)
+
+    # ---------------------------------------------------------------
+    # HEADING SELECTION
+    # ---------------------------------------------------------------
+
+    def _select_subordinate_headings(
+        self,
+        headings: list[str],
+    ) -> list[str]:
+        if not headings:
+            return []
+
+        candidates = []
+
+        # The first heading is usually the page/category heading.
+        #
+        # However, don't blindly discard it if it looks like an actual
+        # candidate and the remaining headings clearly represent items.
+        subordinate = headings[1:]
+
+        for item in subordinate:
+            if not self._is_valid_category_item(item):
+                continue
+
+            if self._looks_like_page_heading(item):
+                continue
+
+            if self._looks_like_ui_or_marketing(item):
+                continue
+
+            candidates.append(item)
+
+        return candidates
+
+    # ---------------------------------------------------------------
+    # FILTERING
+    # ---------------------------------------------------------------
+
+    def _clean_candidates(
+        self,
+        values: list[str],
+    ) -> list[str]:
+        result = []
+
+        for value in values:
+            value = self._clean_text(value)
+
+            if not value:
+                continue
+
+            if not self._is_valid_category_item(value):
+                continue
+
+            result.append(value)
+
+        return result
+
+    def _is_valid_category_item(
+        self,
+        text: str,
+    ) -> bool:
+        text = self._clean_text(text)
 
         if not text:
-            return None
+            return False
 
-        text = " ".join(
-            text.split()
+        if len(text) > self.MAX_ITEM_LENGTH:
+            return False
+
+        normalized = self._normalize(text)
+
+        if not normalized:
+            return False
+
+        for pattern in self.IGNORE_TEXT_PATTERNS:
+            if re.search(
+                pattern,
+                text,
+                flags=re.IGNORECASE,
+            ):
+                return False
+
+        if re.search(
+            r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b",
+            text,
+            flags=re.IGNORECASE,
+        ):
+            return False
+
+        if re.search(
+            r"(?:\+?\d[\d\s().-]{7,}\d)",
+            text,
+        ):
+            return False
+
+        if "©" in text:
+            return False
+
+        return True
+
+    def _looks_like_description(
+        self,
+        text: str,
+    ) -> bool:
+        """
+        Detect sentence-like content rather than category names.
+        """
+
+        text = self._clean_text(text)
+
+        if not text:
+            return True
+
+        words = text.split()
+
+        # A category/product name can be long, but very long prose is
+        # unlikely to be a category item.
+        if len(words) > 12:
+            return True
+
+        if re.search(r"[.!?]", text):
+            return True
+
+        prose_patterns = [
+            r"\bwe\s+(provide|offer|deliver|build|create|help|serve)\b",
+            r"\bwe\s+are\b",
+            r"\bwe\s+have\b",
+            r"\bexperts?\s+in\b",
+            r"\bdesigned\s+to\b",
+            r"\bhelps?\s+(you|businesses|companies)\b",
+            r"\bthat\s+(helps?|keeps?|provides?|allows?)\b",
+            r"\bwith\s+(our|the)\b",
+            r"\bfor\s+(businesses|companies|customers)\b",
+            r"\bconnect\s+with\b",
+            r"\bdiscover\s+the\b",
+            r"\breliable\s+\w+\s+and\s+\w+\b",
+        ]
+
+        for pattern in prose_patterns:
+            if re.search(
+                pattern,
+                text,
+                flags=re.IGNORECASE,
+            ):
+                return True
+
+        return False
+
+    def _looks_like_ui_or_marketing(
+        self,
+        text: str,
+    ) -> bool:
+        normalized = self._normalize(text)
+
+        if not normalized:
+            return True
+
+        for pattern in self.NOISE_HEADING_PATTERNS:
+            if re.search(
+                pattern,
+                normalized,
+                flags=re.IGNORECASE,
+            ):
+                return True
+
+        return False
+
+    def _looks_like_page_heading(
+        self,
+        text: str,
+    ) -> bool:
+        normalized = self._normalize(text)
+
+        page_heading_terms = {
+            "products",
+            "product",
+            "services",
+            "service",
+            "solutions",
+            "solution",
+            "industries",
+            "industry",
+            "locations",
+            "location",
+            "our products",
+            "our services",
+            "our solutions",
+            "our industries",
+            "industries we serve",
+            "explore by industry",
+            "explore product industry",
+            "about",
+            "about us",
+            "contact",
+            "contact us",
+        }
+
+        return normalized in page_heading_terms
+
+    # ---------------------------------------------------------------
+    # TEXT HELPERS
+    # ---------------------------------------------------------------
+
+    @staticmethod
+    def _clean_text(
+        text: str,
+    ) -> str:
+        if not text:
+            return ""
+
+        return re.sub(
+            r"\s+",
+            " ",
+            str(text),
         ).strip()
-
-        if not text:
-            return None
-
-        return text
-
-    # =========================================================
-    # NORMALIZATION
-    # =========================================================
 
     @staticmethod
     def _normalize(
         text: str,
     ) -> str:
+        text = text.lower().strip()
 
-        return " ".join(
-            text.lower().split()
-        ).strip()
+        text = re.sub(
+            r"[-_/]+",
+            " ",
+            text,
+        )
 
-    # =========================================================
-    # DEDUPLICATION
-    # =========================================================
+        text = re.sub(
+            r"\s+",
+            " ",
+            text,
+        )
 
+        return text
+
+    @staticmethod
     def _deduplicate(
-        self,
-        items: list[str],
+        values: list[str],
     ) -> list[str]:
-
         result = []
         seen = set()
 
-        for item in items:
-
-            normalized = self._normalize(item)
+        for value in values:
+            normalized = CategoryExtractor._normalize(value)
 
             if not normalized:
                 continue
@@ -814,6 +735,6 @@ class CategoryExtractor:
                 continue
 
             seen.add(normalized)
-            result.append(item)
+            result.append(value)
 
         return result
