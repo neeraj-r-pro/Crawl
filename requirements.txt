@@ -1,0 +1,11 @@
+requests>=2.31
+beautifulsoup4>=4.12
+lxml>=5.0
+pytest>=8.0
+
+# Optional: only needed for JavaScript-rendered ("dynamic") page support.
+# The crawler works fully without it -- it just falls back to static-only
+# extraction for JS-heavy pages and records that in the output
+# (extraction_result: "partial_static_only"). See docs/ARCHITECTURE.md
+# section 6 for when this matters.
+playwright>=1.40

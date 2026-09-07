@@ -1,0 +1,44 @@
+{
+  "input_url": "http://127.0.0.1:39197/spa",
+  "crawl_meta": {
+    "started_at": "2026-08-28T04:05:12.070597+00:00",
+    "finished_at": "2026-08-28T04:05:13.158124+00:00",
+    "pages_discovered": 1,
+    "pages_fetched_ok": 1,
+    "pages_failed": 0,
+    "max_pages_limit": 10,
+    "stop_reason": "queue_exhausted"
+  },
+  "company": {
+    "company_name": "Acme JS Corp",
+    "website": "http://127.0.0.1:39197/spa",
+    "description": null,
+    "headquarters": null,
+    "other_locations": [],
+    "products": [],
+    "services": [],
+    "solutions": [],
+    "industries": [],
+    "emails": [
+      "hello@acmejscorp.example"
+    ],
+    "phones": [],
+    "social_links": {}
+  },
+  "pages": [
+    {
+      "url": "http://127.0.0.1:39197/spa",
+      "page_type": "home",
+      "final_url": null,
+      "title": "Loading",
+      "http_status": 200,
+      "fetched_ok": true,
+      "extraction_result": "success",
+      "error": null,
+      "depth": 0,
+      "rendered_with": "dynamic",
+      "discovered_from": null,
+      "is_third_party": false
+    }
+  ]
+}
