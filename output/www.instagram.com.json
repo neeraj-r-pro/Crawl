@@ -1,0 +1,42 @@
+{
+  "input_url": "https://www.instagram.com/",
+  "crawl_meta": {
+    "started_at": "2026-09-08T02:42:15.778316+00:00",
+    "finished_at": "2026-09-08T02:42:16.222829+00:00",
+    "pages_discovered": 1,
+    "pages_fetched_ok": 0,
+    "pages_failed": 1,
+    "max_pages_limit": 40,
+    "stop_reason": "queue_exhausted"
+  },
+  "company": {
+    "company_name": null,
+    "website": "https://www.instagram.com/",
+    "description": null,
+    "headquarters": null,
+    "other_locations": [],
+    "products": [],
+    "services": [],
+    "solutions": [],
+    "industries": [],
+    "emails": [],
+    "phones": [],
+    "social_links": {}
+  },
+  "pages": [
+    {
+      "url": "https://www.instagram.com/",
+      "page_type": "home",
+      "final_url": null,
+      "title": null,
+      "http_status": null,
+      "fetched_ok": false,
+      "extraction_result": "failed",
+      "error": "blocked_by_robots_txt",
+      "depth": 0,
+      "rendered_with": "static",
+      "discovered_from": null,
+      "is_third_party": false
+    }
+  ]
+}

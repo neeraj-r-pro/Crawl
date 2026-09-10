@@ -1,8 +1,8 @@
 {
-  "input_url": "https://github.com",
+  "input_url": "https://github.com/",
   "crawl_meta": {
-    "started_at": "2026-08-30T14:32:28.845209+00:00",
-    "finished_at": "2026-08-30T14:32:55.556986+00:00",
+    "started_at": "2026-09-08T02:39:40.910272+00:00",
+    "finished_at": "2026-09-08T02:40:24.644618+00:00",
     "pages_discovered": 40,
     "pages_fetched_ok": 40,
     "pages_failed": 0,
