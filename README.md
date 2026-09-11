@@ -1,14 +1,27 @@
 # Company Website Crawler & Extractor
 
 A Python system that takes a company website URL, discovers the pages worth
-looking at (About, Products, Services, Contact, ...), extracts structured
-company information from them, and writes it out as clean, reusable JSON
-(and optionally SQLite).
+looking at (Home, About, Products, Services, Solutions, Industries,
+Projects, Locations, Contact), extracts structured company information
+from them, and writes it out as clean, reusable JSON (and optionally
+SQLite).
 
-Built for the "Python Developer — Web Automation & Data Extraction"
-technical assignment. See `docs/ARCHITECTURE.md` for the full write-up of
-design decisions, and `docs/TEST_RESULTS.md` for what was tested and the
-live run results.
+Built for a "Python Developer — Web Automation & Data Extraction"
+technical assignment. This README covers installation and running the
+system (Deliverable A). See `docs/ARCHITECTURE.md` for the full technical
+write-up (Deliverable C) and `docs/TEST_RESULTS.md` for test results and
+live validation runs (Deliverable D). Sample output from real crawls is
+in `output/` (Deliverable B).
+
+## Deliverables map
+
+| Assignment asks for | Where to find it |
+|---|---|
+| A. Source code + install/run instructions | This README + `crawler/` |
+| B. Sample output from 3+ real, structurally different sites | `output/` |
+| C. Technical documentation (architecture, strategy, error handling, limitations, scalability) | `docs/ARCHITECTURE.md` |
+| D. Test results | `docs/TEST_RESULTS.md` + `python -m pytest tests/ -v` |
+| E. Presentation | *(prepare separately for the interview — see note at the bottom)* |
 
 ## 1. Installation
 
@@ -75,16 +88,16 @@ Run `python -m crawler.main --help` for the full list.
 
 ### A note on where this was built
 
-This project was built inside a sandboxed development environment whose
-outbound network access is restricted to a short allow-list of developer
-domains (pypi.org, github.com, npmjs.com, etc.) — it cannot reach arbitrary
-company websites. The code itself has **no such restriction**; every
-sample run in `output/` and `docs/TEST_RESULTS.md` was a genuine live
-crawl against a real, public, reachable website from within that sandbox
-(github.com, pypi.org, yarnpkg.com), not a mock. Run it against any
+Parts of this project were built inside a sandboxed development
+environment whose outbound network access is restricted to a short
+allow-list of developer domains (pypi.org, github.com, npmjs.com, etc.)
+— it cannot reach arbitrary company websites. The code itself has **no
+such restriction**; every sample run in `output/` and
+`docs/TEST_RESULTS.md` was a genuine live crawl against a real, public,
+reachable website (github.com, pypi.org, yarnpkg.com, and — from outside
+that sandbox — boncnetwork.com), not a mock. Run it against any
 company's site from a normal machine/network and it will work the same
-way. If you want to point it at a specific set of target companies for
-the interview demo, just pass their URLs with `--url`.
+way.
 
 ## 3. Viewing the output
 
@@ -95,8 +108,8 @@ Output is one JSON file per site, e.g. `output/example_com.json`:
   "input_url": "https://example-company.com",
   "crawl_meta": {
     "started_at": "...", "finished_at": "...",
-    "pages_discovered": 18, "pages_fetched_ok": 16, "pages_failed": 2,
-    "max_pages_limit": 40, "stop_reason": "queue_exhausted"
+    "pages_discovered": 40, "pages_fetched_ok": 40, "pages_failed": 0,
+    "max_pages_limit": 40, "stop_reason": "max_pages_reached"
   },
   "company": {
     "company_name": "...", "website": "...", "description": "...",
@@ -107,47 +120,39 @@ Output is one JSON file per site, e.g. `output/example_com.json`:
   "pages": [
     { "url": "...", "page_type": "about", "title": "...",
       "http_status": 200, "fetched_ok": true,
-      "extraction_result": "success", "depth": 1, "rendered_with": "static", ... },
+      "extraction_result": "success", "depth": 1, "rendered_with": "static",
+      "final_url": null, "is_third_party": false, ... },
     ...
   ]
 }
 ```
 
-`pages` is a full audit trail of every URL the crawler touched — including
-ones that failed — with why. That's deliberate: the assignment asks for
-"whether the page was successfully processed", not just the successes.
+`pages` is a full audit trail of every URL the crawler touched —
+including ones that failed, and ones excluded from aggregation — with
+why. That's deliberate: the assignment asks for "whether the page was
+successfully processed", not just the successes.
+
+`is_third_party` and `page_type: "third_party_listing"` cover a
+real-world case that came up during testing: on directory/marketplace
+sites (e.g. a business-listing platform), some pages on the *same
+domain* describe a completely different company (another business
+listed on the platform), not the one being crawled. Those pages are
+still fetched and recorded for discovery, but their data is excluded
+from the aggregated `company` profile — domain matching alone isn't
+enough to establish page ownership. See `docs/ARCHITECTURE.md` and
+`docs/TEST_RESULTS.md` for the full reasoning and how it's detected.
 
 ## 4. Running the tests
 
 ```bash
-pip install pytest
 python -m pytest tests/ -v
 ```
 
-69 tests, no network or external services required — they run against
+113 tests, no network or external services required — they run against
 either local HTML fixtures or an in-process mock HTTP server
 (`tests/local_site.py`) that simulates timeouts, redirects, 404s, 500s,
 robots.txt, oversized pages, and JS-injected content. See
-`docs/TEST_RESULTS.md` for a breakdown and what's deliberately *not*
-covered.
+`docs/TEST_RESULTS.md` for a full breakdown, the real extraction bugs
+this process caught and fixed, and what's deliberately *not* covered.
 
 ## 5. Project layout
-
-```
-crawler/
-  config.py           tunables: limits, keyword lists, timeouts
-  url_utils.py         normalization, dedup keys, same-site checks
-  page_classifier.py    URL/content -> page category (about/products/contact/...)
-  fetcher.py            static HTTP fetch: retries, timeouts, robots.txt, size caps
-  dynamic_fetcher.py     Playwright fallback for JS-rendered pages + SPA detection
-  extractor.py           pulls fields (name, description, contacts, ...) out of HTML
-  models.py               the output schema (dataclasses)
-  crawler.py               orchestration: priority-queue BFS + cross-page aggregation
-  storage.py                JSON / SQLite writers
-  main.py                    CLI entry point
-tests/                        69 tests, fixtures + local mock server, no network needed
-docs/
-  ARCHITECTURE.md              full design write-up (read this for the "why")
-  TEST_RESULTS.md               what was tested, live run results, known limitations
-output/                          sample JSON output from real live crawls
-```
